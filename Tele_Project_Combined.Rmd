@@ -100,10 +100,10 @@ confusionMatrix(as.factor(tele_logistic_pred01), as.factor(tele_test$yyes), posi
 
 ```{r}
 library(neuralnet)
-tele_norm_train$yyes
+#tele_norm_train$yyes
 # simple ANN with only a single hidden neuron
 tele_ann_model <- neuralnet(formula = `yyes` ~ .,
-                              data = tele_norm_train, hidden = 1)
+                              data = tele_norm_train, hidden = 2)
 
 
 # visualize the network topology
@@ -158,5 +158,105 @@ names(tele_cluster_prob_frame) = c("cluster", "prob")
 tele_cluster_prob_greater <- dplyr::filter(tele_cluster_prob_frame, prob > 0.2)
 
 top_clusters <- tele_cluster_prob_greater$cluster
+
+telemm$cluster <- tele_clusters$cluster
+library(dplyr)
+telemm <- telemm %>% dplyr::filter(cluster %in% top_clusters)
+tele_norm <- tele_norm %>% dplyr::filter(cluster %in% top_clusters)
+```
+We just filtered out the clusters that were above 20% in accuracy
+
+
+# Split Data Into Test and Train
+We are using a 70% proportion to build our model
+```{r}
+# 70 - 30 split
+set.seed(12345)
+nrow(telemm)
+
+tele_prop <- 0.7
+train_tele <- sample(1:nrow(telemm),tele_prop*nrow(telemm))
+tele_train <- telemm[train_tele, ]
+tele_test <- telemm[-train_tele, ]
+
+train_tele_norm <- sample(1:nrow(tele_norm),tele_prop*nrow(tele_norm))
+tele_norm_train <- tele_norm[train_tele_norm, ]
+tele_norm_test <- tele_norm[-train_tele_norm, ]
 ```
 
+# Logistic Model
+## Build Logistic Model
+Model 1 is a base model that includes all remaining predictor variables
+
+```{r}
+tele_logistic <- glm(yyes ~., data = tele_train, family = "binomial")
+summary(tele_logistic)
+```
+
+## Predict Logistic Model
+
+```{r}
+tele_logistic_pred <-predict(tele_logistic, tele_test, type = "response")
+tele_logistic_pred01 <- ifelse (tele_logistic_pred >= 0.5, 1, 0)
+summary(telemm)
+```
+
+## Evaluate Logistic Model
+
+```{r}
+library(caret)
+confusionMatrix(as.factor(tele_logistic_pred01), as.factor(tele_test$yyes), positive = "1")
+
+```
+## Build Logistic Model: Stepwise 
+
+```{r}
+#tele_step <- __(telemm)
+```
+
+# Articifial Neural Network
+## Build Model
+
+```{r}
+library(neuralnet)
+#tele_norm_train$yyes
+# simple ANN with only a single hidden neuron
+tele_ann_model <- neuralnet(formula = `yyes` ~ .,
+                              data = tele_norm_train, hidden = 1)
+
+
+# visualize the network topology
+plot(tele_ann_model)
+```
+
+## Predict and Evaluate ANN Model
+
+```{r}
+tele_ann_pred <- predict(tele_ann_model, tele_norm_test)
+#cor(tele_ann_pred, tele_norm_test$yyes)
+
+tele_ann_pred_bin <- ifelse(tele_ann_pred > 0.5, 1, 0)
+
+confusionMatrix(as.factor(tele_ann_pred_bin), as.factor(tele_norm_test$yyes), positive = as.character(1))
+```
+
+## Voting!!!
+```{r}
+#voting_pred <- ifelse(((as.integer(tele_ann_pred) + as.integer(tele_logistic_pred))/2) > 0.5, 1, 0)
+# makes a new data frame 
+voting_data_frame <- data.frame(
+  lm = as.numeric(tele_logistic_pred),
+  ann = as.numeric(tele_ann_pred)
+)
+
+# making a new column that sees if the average of the two predicitons and if above 0.5 then classifies as one
+voting_data_frame$pred <- ifelse(((voting_data_frame$lm + voting_data_frame$ann))/2 > 0.5, 1, 0)
+
+head(voting_data_frame, 20)
+
+head(filter(voting_data_frame, pred == 1), 20)
+```
+
+```{r}
+confusionMatrix(as.factor(voting_data_frame$pred), as.factor(tele_norm_test$yyes), positive = as.character(1))
+```
