@@ -1,0 +1,162 @@
+---
+title: "Tele-Project-Combined"
+author: "Fishbowlz"
+date: "2023-10-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#Downloading and Prepping the Data
+tele <- read.csv("tele.csv", stringsAsFactors = TRUE)
+summary(tele)
+str(tele)
+```
+
+# Clean Data
+```{r}
+#We are deleting the "duration" variable because it is an after the fact measurement. We only should be using variables that we know before the call
+tele$duration <- NULL
+
+# Deleting the column X
+tele$X <- NULL
+
+# Changing pdays to a dummy and deleting pdays
+tele$pdaysdummy <- ifelse(tele$pdays == 999, 0, 1)
+tele$pdays <- NULL
+
+str(tele)
+```
+
+```{r}
+# Using model.matrix to convert all the factors to dummy variables
+# We are converting all of the factors into dummy variables as the input into knn has to be numeric
+
+telemm <- as.data.frame(model.matrix(~.-1,tele))
+str(telemm)
+```
+
+```{r}
+#Normalize the data
+normalize <- function(x) {
+  return ((x - min(x)) / (max(x) - min(x)))
+}
+
+# we are going to normalize everything for KNN and ANN
+tele_norm <- as.data.frame(lapply(telemm, normalize))
+```
+
+# Split Data Into Test and Train
+We are using a 70% proportion to build our model
+```{r}
+# 70 - 30 split
+set.seed(12345)
+nrow(telemm)
+
+tele_prop <- 0.7
+train_tele <- sample(1:nrow(telemm),tele_prop*nrow(telemm))
+tele_train <- telemm[train_tele, ]
+tele_test <- telemm[-train_tele, ]
+
+train_tele_norm <- sample(1:nrow(tele_norm),tele_prop*nrow(tele_norm))
+tele_norm_train <- tele_norm[train_tele_norm, ]
+tele_norm_test <- tele_norm[-train_tele_norm, ]
+```
+# Logistic Model
+## Build Logistic Model
+Model 1 is a base model that includes all remaining predictor variables
+
+```{r}
+tele_logistic <- glm(yyes ~., data = tele_train, family = "binomial")
+summary(tele_logistic)
+```
+
+## Predict Logistic Model
+
+```{r}
+tele_logistic_pred <-predict(tele_logistic, tele_test, type = "response")
+tele_logistic_pred01 <- ifelse (tele_logistic_pred >= 0.5, 1, 0)
+summary(telemm)
+```
+
+## Evaluate Logistic Model
+
+```{r}
+library(caret)
+confusionMatrix(as.factor(tele_logistic_pred01), as.factor(tele_test$yyes), positive = "1")
+
+```
+## Build Logistic Model: Stepwise 
+
+```{r}
+#tele_step <- __(telemm)
+```
+
+# Articifial Neural Network
+## Build Model
+
+```{r}
+library(neuralnet)
+tele_norm_train$yyes
+# simple ANN with only a single hidden neuron
+tele_ann_model <- neuralnet(formula = `yyes` ~ .,
+                              data = tele_norm_train, hidden = 1)
+
+
+# visualize the network topology
+plot(tele_ann_model)
+```
+
+## Predict and Evaluate ANN Model
+
+```{r}
+tele_ann_pred <- predict(tele_ann_model, tele_norm_test)
+#cor(tele_ann_pred, tele_norm_test$yyes)
+
+tele_ann_pred_bin <- ifelse(tele_ann_pred > 0.5, 1, 0)
+
+confusionMatrix(as.factor(tele_ann_pred_bin), as.factor(tele_norm_test$yyes), positive = as.character(1))
+```
+
+
+# Clusters
+## Creating Clusters
+
+```{r}
+
+tele_norm_x <- tele_norm[,-53]
+tele_clusters <- kmeans(tele_norm_x, 7)
+tele_clusters$size
+
+tele_clusters$centers
+
+tele_norm$cluster <- tele_clusters$cluster
+
+tele_cluster_prob <- tapply(tele_norm$yyes, tele_norm$cluster, mean, na.rm = T)
+
+
+#Found number of successful calls
+0.23599493*7890 + 0.35957121*3265
+# Calculated total number of calls
+7890+3265
+# found percent of successful calls
+3036/11155
+# Successful calls (profit)
+(3036*(10-1)) - ((11155 - 3036)*2)
+
+```
+
+```{r}
+#attempts at pulling out top clusters only
+tele_cluster_prob_frame <- data.frame(unlist(names(tele_cluster_prob)), unlist(unname(tele_cluster_prob)))
+
+names(tele_cluster_prob_frame) = c("cluster", "prob")
+
+tele_cluster_prob_greater <- dplyr::filter(tele_cluster_prob_frame, prob > 0.2)
+
+top_clusters <- tele_cluster_prob_greater$cluster
+```
+
