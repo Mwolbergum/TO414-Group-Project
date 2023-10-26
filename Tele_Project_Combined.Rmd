@@ -2,12 +2,24 @@
 title: "Tele-Project-Combined"
 author: "Fishbowlz"
 date: "2023-10-25"
-output: html_document
+output: 
+  html_document:
+    code_folding: hide
+
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+Call Libraries
+```{r}
+library(dplyr)
+library(caret)
+library(neuralnet)
+library(class)
+```
+
 
 ```{r}
 #Downloading and Prepping the Data
@@ -59,13 +71,13 @@ tele_norm_x <- tele_norm[,-53]
 tele_clusters <- kmeans(tele_norm_x, 7)
 tele_clusters$size
 
-tele_clusters$centers
+#tele_clusters$centers
 
 tele_norm$cluster <- tele_clusters$cluster
 
 tele_cluster_prob <- tapply(tele_norm$yyes, tele_norm$cluster, mean, na.rm = T)
 
-
+#DO THE BELOW IN THE FOLLOWING TABS
 #Found number of successful calls
 0.23599493*7890 + 0.35957121*3265
 # Calculated total number of calls
@@ -76,133 +88,158 @@ tele_cluster_prob <- tapply(tele_norm$yyes, tele_norm$cluster, mean, na.rm = T)
 (3036*(10-1)) - ((11155 - 3036)*2)
 
 ```
-
+## Finding Profitability :)
 ```{r}
-#attempts at pulling out top clusters only
+# This coding block will now be used to setup finding net profits of the most profitable clusters
+# Makes a data frame of each cluster and the accuracy of each cluster
 tele_cluster_prob_frame <- data.frame(unlist(names(tele_cluster_prob)), unlist(unname(tele_cluster_prob)))
 
-names(tele_cluster_prob_frame) = c("cluster", "prob")
+# adds the size of each cluster to the newly made dataframe
+tele_cluster_prob_frame$size <- tele_clusters$size
 
+# renames the columns so that they are legible with their variables
+names(tele_cluster_prob_frame) = c("cluster", "prob", "size")
+
+# this makes a new dataframe that only includes clusters with a 20% accuracy or higher
 tele_cluster_prob_greater <- dplyr::filter(tele_cluster_prob_frame, prob > 0.2)
 
-top_clusters <- tele_cluster_prob_greater$cluster
 
-telemm$cluster <- tele_clusters$cluster
-library(dplyr)
-telemm <- telemm %>% dplyr::filter(cluster %in% top_clusters)
-tele_norm <- tele_norm %>% dplyr::filter(cluster %in% top_clusters)
+# this just makes a list of all cluster numbers that are above 20%, shouldn't be necessary
+#top_cluster <- tele_cluster_prob_greater$cluster
+
 ```
-We just filtered out the clusters that were above 20% in accuracy
+
+```{r}
+#find profits here
+```
 
 
-# Split Data Into Test and Train
+# Building LM, ANN, KNN
+## Split Data Into Test and Train
 We are using a 70% proportion to build our model
 ```{r}
 # 70 - 30 split
 set.seed(12345)
-nrow(telemm)
 
 tele_prop <- 0.7
 train_tele <- sample(1:nrow(telemm),tele_prop*nrow(telemm))
 tele_train <- telemm[train_tele, ]
 tele_test <- telemm[-train_tele, ]
 
+# normalized data is needed for ANN and KNN
 train_tele_norm <- sample(1:nrow(tele_norm),tele_prop*nrow(tele_norm))
 tele_norm_train <- tele_norm[train_tele_norm, ]
 tele_norm_test <- tele_norm[-train_tele_norm, ]
+
+# You need to separate the x and y from each other when using a KNN
+tele_norm_train_x <- tele_norm_train[, -53]
+tele_norm_test_x <- tele_norm_test[, -53]
+
+tele_norm_train_y <- tele_norm_train[, 53]
+tele_norm_test_y <- tele_norm_test[, 53]
+
 ```
 
-# Logistic Model
-## Build Logistic Model
-Model 1 is a base model that includes all remaining predictor variables
+## Logistic Model
+### Build Logistic Model
 
 ```{r}
+# the below line is commented because it is too taxing to run at the moment for testing, switch them out eventually
+#tele_logistic <- glm(yyes ~. + .*., data = tele_train, family = "binomial")
 tele_logistic <- glm(yyes ~., data = tele_train, family = "binomial")
-summary(tele_logistic)
+tele_logistic_step <- step(tele_logistic, direction = "backward")
+
 ```
 
-## Predict Logistic Model
-
 ```{r}
-tele_logistic_pred <-predict(tele_logistic, tele_test, type = "response")
-tele_logistic_pred01 <- ifelse (tele_logistic_pred >= 0.5, 1, 0)
-summary(telemm)
+summary(tele_logistic_step)
 ```
 
-## Evaluate Logistic Model
+### Predict Logistic Model
 
 ```{r}
-library(caret)
+tele_logistic_pred <- predict(tele_logistic_step, tele_test, type = "response")
+tele_logistic_pred_bin <- ifelse (tele_logistic_pred >= 0.5, 1, 0)
+```
+
+### Evaluate Logistic Model
+
+```{r}
 confusionMatrix(as.factor(tele_logistic_pred01), as.factor(tele_test$yyes), positive = "1")
-
-```
-## Build Logistic Model: Stepwise 
-
-```{r}
-#tele_step <- __(telemm)
 ```
 
-# Articifial Neural Network
-## Build Model
+## Articifial Neural Network
+### Build Model
 
 ```{r}
-library(neuralnet)
 #tele_norm_train$yyes
 # simple ANN with only a single hidden neuron
 tele_ann_model <- neuralnet(formula = `yyes` ~ .,
-                              data = tele_norm_train)
-
+                              data = tele_norm_train, hidden = 1)
 
 # visualize the network topology
 plot(tele_ann_model)
 ```
 
-## Predict and Evaluate ANN Model
+### Predict and Evaluate ANN Model
 
 ```{r}
 tele_ann_pred <- predict(tele_ann_model, tele_norm_test)
-#cor(tele_ann_pred, tele_norm_test$yyes)
 
-tele_ann_pred_bin <- ifelse(tele_ann_pred > 0.5, 1, 0)
+tele_ann_pred_bin <- ifelse(tele_ann_pred >= 0.5, 1, 0)
 
 confusionMatrix(as.factor(tele_ann_pred_bin), as.factor(tele_norm_test$yyes), positive = as.character(1))
 ```
 
+## KNN Model
+
+### Build Model and Predict
+
+```{r}
+#its generally good to set K to the sqrt of the number of observations and then a bit smaller
+tele_knn_pred_bin <- knn(tele_norm_train_x, tele_norm_test_x, tele_norm_train_y, k = round(sqrt(nrow(tele_norm_train))/5), )
+```
+
+### Evaluate
+```{r}
+confusionMatrix(as.factor(tele_knn_pred_bin), as.factor(tele_norm_test_y), positive = as.character(1))
+```
+
 ## Voting!!!
 ```{r}
-#voting_pred <- ifelse(((as.integer(tele_ann_pred) + as.integer(tele_logistic_pred))/2) > 0.5, 1, 0)
 # makes a new data frame 
 voting_data_frame <- data.frame(
-  lm = as.numeric(tele_logistic_pred),
-  ann = as.numeric(tele_ann_pred)
+  lm = as.numeric(tele_logistic_pred_bin),
+  ann = as.numeric(tele_ann_pred_bin),
+  knn = as.numeric(as.character(tele_knn_pred_bin))
 )
 
 # making a new column that sees if the average of the two predicitons and if above 0.5 then classifies as one
-voting_data_frame$pred <- ifelse(((voting_data_frame$lm + voting_data_frame$ann))/2 > 0.5, 1, 0)
+voting_data_frame$pred <- ifelse((voting_data_frame$lm + voting_data_frame$ann + voting_data_frame$knn) >= 2, 1, 0)
 
 head(voting_data_frame, 20)
-
-head(filter(voting_data_frame, pred == 1), 20)
+head(dplyr::filter(voting_data_frame, pred == 1), 20)
 ```
-# Finding our Profitability! :)
+## Finding our Profitability! :)
 ```{r}
-library(caret)
 confusion_matrix <- confusionMatrix(as.factor(voting_data_frame$pred), as.factor(tele_norm_test$yyes), positive = as.character(1))
 
 # The number of true positives times the contribution margin for successful calls, plus the number of false positives times the total average cost for each call ($1 variable cost + $1000 training cost/1000 calls per associate)
-baseline_profits <- confusion_matrix$table[1, 1]*10 - confusion_matrix$table[2, 1]*2
+baseline_profits <- confusion_matrix$table[2, 2]*10 - confusion_matrix$table[2, 1]*2
 
 # The baseline percentage of successful calls
 percent_success_baseline <- sum(tele$y == "yes")/nrow(tele)
 
 # New percentage of successful calls
-percent_success_new <- confusion_matrix$table[1, 1] / (confusion_matrix$table[1, 1] + confusion_matrix$table[2, 1])
+percent_success_new <- confusion_matrix$table[2, 2] / (confusion_matrix$table[2, 2] + confusion_matrix$table[2, 1])
 
 new_avg_training_cost <- 1000/((percent_success_new - percent_success_baseline)*100*100 + 1000)
 
 # Now I'm finding the new profits to account for the lower average training cost due to increased employee retention
-new_profits <- confusion_matrix$table[1, 1]*10 - confusion_matrix$table[2, 1]*new_avg_training_cost
+new_profits <- confusion_matrix$table[2, 2]*10 - confusion_matrix$table[2, 1]*new_avg_training_cost
 
 print(baseline_profits)
 print(new_profits)
 ```
+
+
