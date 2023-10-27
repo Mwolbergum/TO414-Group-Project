@@ -218,6 +218,9 @@ While just a warning, this would result in the plotting failing. Because of this
 ```{r}
 #tele_ann_pred_read <- read.csv("tele_ann_pred_output.csv")
 #str(tele_ann_pred_read)
+import_ann <- read.csv("tele_ann_pred_output.csv")
+str(import_ann)
+tele_ann_pred_bin <- import_ann$V1
 ```
 
 
