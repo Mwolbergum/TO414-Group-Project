@@ -85,7 +85,7 @@ tele_cluster_prob <- tapply(tele_norm$yyes, tele_norm$cluster, mean, na.rm = T)
 
 
 ## We now need to find the net profit using the most profitable cluster.
-### Our process to do this was to use a dataframe that only includes clusters with higher than 20% accuracy. Then the number of true positives multiplied by the contribution margin of successful calls and the total average cost of 
+### Our process to do this was to use a dataframe that only includes clusters with higher than 20% accuracy. Then the number of true positives multiplied by the contribution margin of successful calls and the total average cost for each call. Then we account for the new employee retention and calculate new profits. 
 ```{r}
 # This coding block will now be used to setup finding net profits of the most profitable clusters
 # Makes a data frame of each cluster and the accuracy of each cluster
@@ -137,7 +137,7 @@ The Net Profits from the Clustering is `R cluster_net_profits`
 
 # Building LM, ANN, KNN
 ## Split Data Into Test and Train
-We are using a 70% proportion to build our model
+### We are using a 70% split for our training set in order to increase the speed of the computing.
 ```{r}
 # 70 - 30 split
 set.seed(12345)
@@ -162,10 +162,10 @@ tele_norm_test_y <- tele_norm_test[, 53]
 ```
 
 ## Logistic Model
-### Build Logistic Model
-## output was manually taken and and recorded below for computing efficiency 
+## Build Logistic Model
+### The output of the stepwise function with a backwwards direction was manually taken and and recorded below for computing efficiency. 
 ```{r}
-# the below line is commented because it is too taxing to run at the moment for testing, switch them out eventually
+# the below line is commented because it is too taxing to run at the moment for testing.
 #tele_logistic <- glm(yyes ~. + .*., data = tele_train, family = "binomial")
 tele_logistic <- glm(yyes ~., data = tele_train, family = "binomial")
 tele_logistic_step <- step(tele_logistic, direction = "backward")
@@ -176,24 +176,24 @@ tele_logistic_step <- step(tele_logistic, direction = "backward")
 summary(tele_logistic_step)
 ```
 
-### Predict Logistic Model
+## Predict Logistic Model
 
 ```{r}
 tele_logistic_pred <- predict(tele_logistic_step, tele_test, type = "response")
 tele_logistic_pred_bin <- ifelse (tele_logistic_pred >= 0.5, 1, 0)
 ```
 
-### Evaluate Logistic Model
+## Evaluate Logistic Model
 
 ```{r}
 confusionMatrix(as.factor(tele_logistic_pred01), as.factor(tele_test$yyes), positive = "1")
 ```
 
-## Articifial Neural Network
-### Build Model
-Due to constraints when building the model, we could not run in the Neural Network in this document. When we applied more layers an neurons we ended up with warnings like the following:
-*Warning: Algorithm did not converge in 1 of 1 repetition(s) within the stepmax.*
-While just a warning, this would result in the plotting failing. Because of this we are using a more limited ANN model which will be pulled in from a .cvs file at the end of this section.
+# Articifial Neural Network
+## Build Model
+### Due to constraints when building the model, we could not run in the Neural Network in this document. When we applied more layers an neurons we ended up with warnings like the following:
+### *Warning: Algorithm did not converge in 1 of 1 repetition(s) within the stepmax.*
+### While just a warning, this would result in the plotting failing. Because of this we are using a more limited ANN model which will be pulled in from a .cvs file at the end of this section.
 ```{r}
 
 #tele_ann_model <- neuralnet(formula = `yyes` ~ .,
@@ -203,7 +203,7 @@ While just a warning, this would result in the plotting failing. Because of this
 #plot(tele_ann_model)
 ```
 
-### Predict and Evaluate ANN Model
+## Predict and Evaluate ANN Model
 
 ```{r}
 #tele_ann_pred <- predict(tele_ann_model, tele_norm_test)
@@ -212,7 +212,7 @@ While just a warning, this would result in the plotting failing. Because of this
 
 #confusionMatrix(as.factor(tele_ann_pred_bin), as.factor(tele_norm_test$yyes), positive = as.character(1))
 ```
-### Read in ANN Predict
+## Read in ANN Predict
 ```{r}
 import_ann <- read.csv("tele_ann_pred_output.csv")
 str(import_ann)
@@ -220,21 +220,22 @@ tele_ann_pred_bin <- import_ann$V1
 ```
 
 
-## KNN Model
+# KNN Model
 
-### Build Model and Predict
+## Build Model and Predict
 
 ```{r}
 #its generally good to set K to the sqrt of the number of observations and then a bit smaller
 tele_knn_pred_bin <- knn(tele_norm_train_x, tele_norm_test_x, tele_norm_train_y, k = round(sqrt(nrow(tele_norm_train))/5), )
 ```
 
-### Evaluate
+## Evaluate
 ```{r}
 confusionMatrix(as.factor(tele_knn_pred_bin), as.factor(tele_norm_test_y), positive = as.character(1))
 ```
 
-## Voting!!!
+## Voting
+### We used a voting system to combine our results from our LM, ANN, and KNN models. 
 ```{r}
 # makes a new data frame 
 voting_data_frame <- data.frame(
@@ -249,7 +250,9 @@ voting_data_frame$pred <- ifelse((voting_data_frame$lm + voting_data_frame$ann +
 head(voting_data_frame, 20)
 head(dplyr::filter(voting_data_frame, pred == 1), 20)
 ```
-## Finding our Profitability! :)
+
+## Finding our Profitability
+### We found the net profitability using a similar method to above. 
 ```{r}
 confusion_matrix <- confusionMatrix(as.factor(voting_data_frame$pred), as.factor(tele_norm_test$yyes), positive = as.character(1))
 
