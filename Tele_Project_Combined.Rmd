@@ -110,7 +110,30 @@ tele_cluster_prob_greater <- dplyr::filter(tele_cluster_prob_frame, prob > 0.2)
 ```
 
 ```{r}
-#find profits here
+#Finding profits for clusters
+# The number of true positives times the contribution margin for successful calls, plus the number of false positives times the total average cost for each call ($1 variable cost + $1000 training cost/1000 calls per associate)
+cluster_baseline_profits <- nrow(dplyr::filter(tele_norm, yyes == 1))*10 - nrow(dplyr::filter(tele_norm, yyes == 0))*2
+
+# The baseline percentage of successful calls
+cluster_percent_success_baseline <- nrow(tele_norm$yyes == "yes")/nrow(tele_norm)
+
+# Creating a new column in the dataframe that shows probability of successful call from that cluster times the size of that cluster, thereby showing total number of successful calls from that cluster
+tele_cluster_prob_greater$success_calls <- tele_cluster_prob_greater$prob * tele_cluster_prob_greater$size
+
+tele_cluster_prob_greater$failed_calls <- tele_cluster_prob_greater$size - tele_cluster_prob_greater$success_calls
+
+# Finding number of successful calls by adding up all rows from the new column in the data frame
+clusters_numb_success_calls <- sum(tele_cluster_prob_greater$success_calls)
+clusters_numb_failed_calls <- sum(tele_cluster_prob_greater$failed_calls)
+
+# New percentage of successful calls
+clusters_percent_success_new <- clusters_numb_success_calls / (clusters_numb_success_calls + clusters_numb_failed_calls)
+
+cluster_new_avg_training_cost <- 1000/((cluster_percent_success_new - cluster_percent_success_baseline)*100*100 + 1000)
+
+# Now I'm finding the new profits to account for the lower average training cost due to increased employee retention
+cluster_net_profits <- clusters_no_success_calls * 10 - clusters_numb_failed_calls*cluster_new_avg_training_cost
+
 ```
 
 
@@ -170,26 +193,33 @@ confusionMatrix(as.factor(tele_logistic_pred01), as.factor(tele_test$yyes), posi
 
 ## Articifial Neural Network
 ### Build Model
-
+Due to constraints when building the model, we could not run in the Neural Network in this document. When we applied more layers an neurons we ended up with warnings like the following:
+*Warning: Algorithm did not converge in 1 of 1 repetition(s) within the stepmax.*
+While just a warning, this would result in the plotting failing. Because of this we are using a more limited ANN model which will be pulled in from a .cvs file at the end of this section.
 ```{r}
-#tele_norm_train$yyes
-# simple ANN with only a single hidden neuron
-tele_ann_model <- neuralnet(formula = `yyes` ~ .,
-                              data = tele_norm_train, hidden = 1)
+
+#tele_ann_model <- neuralnet(formula = `yyes` ~ .,
+#                              data = tele_norm_train, hidden = 2)
 
 # visualize the network topology
-plot(tele_ann_model)
+#plot(tele_ann_model)
 ```
 
 ### Predict and Evaluate ANN Model
 
 ```{r}
-tele_ann_pred <- predict(tele_ann_model, tele_norm_test)
+#tele_ann_pred <- predict(tele_ann_model, tele_norm_test)
 
-tele_ann_pred_bin <- ifelse(tele_ann_pred >= 0.5, 1, 0)
+#tele_ann_pred_bin <- ifelse(tele_ann_pred >= 0.5, 1, 0)
 
-confusionMatrix(as.factor(tele_ann_pred_bin), as.factor(tele_norm_test$yyes), positive = as.character(1))
+#confusionMatrix(as.factor(tele_ann_pred_bin), as.factor(tele_norm_test$yyes), positive = as.character(1))
 ```
+### Read in ANN Predict
+```{r}
+#tele_ann_pred_read <- read.csv("tele_ann_pred_output.csv")
+#str(tele_ann_pred_read)
+```
+
 
 ## KNN Model
 
@@ -225,10 +255,10 @@ head(dplyr::filter(voting_data_frame, pred == 1), 20)
 confusion_matrix <- confusionMatrix(as.factor(voting_data_frame$pred), as.factor(tele_norm_test$yyes), positive = as.character(1))
 
 # The number of true positives times the contribution margin for successful calls, plus the number of false positives times the total average cost for each call ($1 variable cost + $1000 training cost/1000 calls per associate)
-baseline_profits <- confusion_matrix$table[2, 2]*10 - confusion_matrix$table[2, 1]*2
+baseline_profits <- nrow(dplyr::filter(tele_norm, yyes == 1))*10 - nrow(dplyr::filter(tele_norm, yyes == 0))*2
 
 # The baseline percentage of successful calls
-percent_success_baseline <- sum(tele$y == "yes")/nrow(tele)
+percent_success_baseline <- nrow(tele_norm$yyes == "yes")/nrow(tele_norm)
 
 # New percentage of successful calls
 percent_success_new <- confusion_matrix$table[2, 2] / (confusion_matrix$table[2, 2] + confusion_matrix$table[2, 1])
@@ -241,5 +271,3 @@ new_profits <- confusion_matrix$table[2, 2]*10 - confusion_matrix$table[2, 1]*ne
 print(baseline_profits)
 print(new_profits)
 ```
-
-
