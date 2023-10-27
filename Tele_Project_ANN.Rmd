@@ -83,7 +83,7 @@ tele_norm_test <- tele_norm[-train_tele_norm, ]
 #tele_norm_train$yyes
 # simple ANN with only a single hidden neuron
 tele_ann_model <- neuralnet(formula = `yyes` ~ .,
-                              data = tele_norm_train, hidden = c(3,2,2))
+                              data = tele_norm_train, hidden = c(3,2,2), linear.output = F)
 
 # visualize the network topology
 plot(tele_ann_model)
