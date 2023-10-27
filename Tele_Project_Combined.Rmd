@@ -123,19 +123,20 @@ tele_cluster_prob_greater$success_calls <- tele_cluster_prob_greater$prob * tele
 tele_cluster_prob_greater$failed_calls <- tele_cluster_prob_greater$size - tele_cluster_prob_greater$success_calls
 
 # Finding number of successful calls by adding up all rows from the new column in the data frame
-clusters_numb_success_calls <- sum(tele_cluster_prob_greater$success_calls)
-clusters_numb_failed_calls <- sum(tele_cluster_prob_greater$failed_calls)
+cluster_numb_success_calls <- sum(tele_cluster_prob_greater$success_calls)
+cluster_numb_failed_calls <- sum(tele_cluster_prob_greater$failed_calls)
 
 # New percentage of successful calls
-clusters_percent_success_new <- clusters_numb_success_calls / (clusters_numb_success_calls + clusters_numb_failed_calls)
+cluster_percent_success_new <- cluster_numb_success_calls / (cluster_numb_success_calls + cluster_numb_failed_calls)
 
 cluster_new_avg_training_cost <- 1000/((cluster_percent_success_new - cluster_percent_success_baseline)*100*100 + 1000)
 
 # Now I'm finding the new profits to account for the lower average training cost due to increased employee retention
-cluster_net_profits <- clusters_no_success_calls * 10 - clusters_numb_failed_calls*cluster_new_avg_training_cost
+cluster_net_profits <- cluster_numb_success_calls * 10 - cluster_numb_failed_calls*cluster_new_avg_training_cost
+
 
 ```
-
+The Net Profits from the Clustering is `R cluster_net_profits`
 
 # Building LM, ANN, KNN
 ## Split Data Into Test and Train
@@ -216,8 +217,6 @@ While just a warning, this would result in the plotting failing. Because of this
 ```
 ### Read in ANN Predict
 ```{r}
-#tele_ann_pred_read <- read.csv("tele_ann_pred_output.csv")
-#str(tele_ann_pred_read)
 import_ann <- read.csv("tele_ann_pred_output.csv")
 str(import_ann)
 tele_ann_pred_bin <- import_ann$V1
